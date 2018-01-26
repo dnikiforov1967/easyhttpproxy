@@ -13,7 +13,6 @@ import org.easy.httpproxy.impl.util.ProxyUtil;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
-import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpObject;
@@ -49,9 +48,6 @@ import io.netty.handler.codec.http.HttpContentDecompressor;
 public class ConnectionFlowController implements ConnectionFlow {
 
 	private final static Logger LOG = Logger.getLogger(ConnectionFlowController.class.getName());
-	
-	public static final String AGGREGATOR = "aggregator";
-	public static final String INFLATER = "inflater";
 	
 	private final Channel clientChannel;
 	private volatile ExtendedNioSocketChannel serverChannel;

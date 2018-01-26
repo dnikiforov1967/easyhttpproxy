@@ -14,6 +14,9 @@ import io.netty.handler.codec.http.HttpRequest;
  */
 public interface ConnectionFlow {
 
+	String AGGREGATOR = "aggregator";
+	String INFLATER = "inflater";	
+	
 	ChannelFuture writeToClient(Object obj);
 
 	ChannelFuture writeToServer(Object obj);

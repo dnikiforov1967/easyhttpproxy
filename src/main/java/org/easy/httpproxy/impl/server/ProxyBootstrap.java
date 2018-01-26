@@ -16,12 +16,16 @@ import io.netty.channel.ChannelPipeline;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.codec.http.HttpContentDecompressor;
+import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.timeout.IdleStateHandler;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import static org.easy.httpproxy.core.ConnectionFlow.AGGREGATOR;
+import static org.easy.httpproxy.core.ConnectionFlow.INFLATER;
 
 /**
  *
@@ -161,6 +165,11 @@ public class ProxyBootstrap {
 					config.getMaxChunkSize()
 			));
 			pipeline.addLast("encoder", new HttpResponseEncoder());
+			int maxAggregatedContentLength = httpFiltersSource.getMaximumRequestBufferSizeInBytes();
+			if (maxAggregatedContentLength > 0) {
+				pipeline.addLast(INFLATER, new HttpContentDecompressor());
+				pipeline.addLast(AGGREGATOR, new HttpObjectAggregator(maxAggregatedContentLength));
+			}			
 			pipeline.addLast("idleStateHandler", new IdleStateHandler(0, 0, config.idleClientTimeOut, TimeUnit.SECONDS));
 			pipeline.addLast(new ClientToProxyConnectionAdapter(httpFiltersSource, config, serverGroup));
 		}
