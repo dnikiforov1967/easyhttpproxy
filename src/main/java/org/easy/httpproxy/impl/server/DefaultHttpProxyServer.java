@@ -51,43 +51,8 @@ public final class DefaultHttpProxyServer implements HttpProxyServer {
 	}
 
 	@Override
-	public int getIdleConnectionTimeout() {
-		throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-	}
-
-	@Override
-	public void setIdleConnectionTimeout(int idleConnectionTimeout) {
-		throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-	}
-
-	@Override
-	public int getConnectTimeout() {
-		throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-	}
-
-	@Override
-	public void setConnectTimeout(int connectTimeoutMs) {
-		throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-	}
-
-	@Override
 	public void stop() {
 		proxyBootstrap.shutdown();
 	}
 
-	@Override
-	public void abort() {
-		throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-	}
-
-	@Override
-	public InetSocketAddress getListenAddress() {
-		throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-	}
-
-	@Override
-	public void setThrottle(long readThrottleBytesPerSecond, long writeThrottleBytesPerSecond) {
-		throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-	}
-	
 }
