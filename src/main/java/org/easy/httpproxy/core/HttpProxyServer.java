@@ -5,8 +5,6 @@
  */
 package org.easy.httpproxy.core;
 
-import java.net.InetSocketAddress;
-
 /**
  *
  * @author dnikiforov
@@ -19,6 +17,6 @@ public interface HttpProxyServer {
     void stop();
 
 	HttpProxyServer start();
-	
+
 }
 

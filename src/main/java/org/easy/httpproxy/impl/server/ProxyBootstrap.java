@@ -5,8 +5,10 @@
  */
 package org.easy.httpproxy.impl.server;
 
+import static org.easy.httpproxy.core.ConnectionFlow.INFLATOR;
 import org.easy.httpproxy.core.HttpFiltersSource;
 import org.easy.httpproxy.impl.adapter.ClientToProxyConnectionAdapter;
+import static org.easy.httpproxy.core.ConnectionFlow.AGGREGATOR;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
@@ -24,8 +26,6 @@ import io.netty.handler.timeout.IdleStateHandler;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import static org.easy.httpproxy.core.ConnectionFlow.AGGREGATOR;
-import static org.easy.httpproxy.core.ConnectionFlow.INFLATER;
 
 /**
  *
@@ -167,7 +167,7 @@ public class ProxyBootstrap {
 			pipeline.addLast("encoder", new HttpResponseEncoder());
 			int maxAggregatedContentLength = httpFiltersSource.getMaximumRequestBufferSizeInBytes();
 			if (maxAggregatedContentLength > 0) {
-				pipeline.addLast(INFLATER, new HttpContentDecompressor());
+				pipeline.addLast(INFLATOR, new HttpContentDecompressor());
 				pipeline.addLast(AGGREGATOR, new HttpObjectAggregator(maxAggregatedContentLength));
 			}			
 			pipeline.addLast("idleStateHandler", new IdleStateHandler(0, 0, config.idleClientTimeOut, TimeUnit.SECONDS));

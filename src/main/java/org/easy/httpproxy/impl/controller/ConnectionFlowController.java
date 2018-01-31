@@ -48,13 +48,13 @@ import io.netty.handler.codec.http.HttpContentDecompressor;
 public class ConnectionFlowController implements ConnectionFlow {
 
 	private final static Logger LOG = Logger.getLogger(ConnectionFlowController.class.getName());
-	
+
 	private final Channel clientChannel;
 	private volatile ExtendedNioSocketChannel serverChannel;
 	private final Map<SocketAddress, ExtendedNioSocketChannel> proxyToServerChannels = new ConcurrentHashMap<>();
 	private volatile boolean isKeepAlive = false;
 	private final HttpRequest request;
-	private final HttpFilters httpFilters;
+	private HttpFilters httpFilters;
 	private final HttpFiltersSource httpFiltersSource;
 	private final NioEventLoopGroup serverGroup;
 	private final Config config;
@@ -66,6 +66,11 @@ public class ConnectionFlowController implements ConnectionFlow {
 		this.httpFiltersSource = httpFiltersSource;
 		this.config = config;
 		this.serverGroup = serverGroup;
+	}
+
+	@Override
+	public void setHttpFilters(HttpFilters httpFilters) {
+		this.httpFilters = httpFilters;
 	}
 
 	@Override
@@ -98,6 +103,9 @@ public class ConnectionFlowController implements ConnectionFlow {
 			initiateNewConnection(resolveTargetServer, request);
 		} else {
 			LOG.info("Use existing server connection");
+			ChannelPipeline pipeline = serverChannel.pipeline();
+			setUpAggregator(pipeline);			
+			httpFilters.proxyToServerConnectionSucceeded(pipeline);
 		}
 	}
 
@@ -139,7 +147,7 @@ public class ConnectionFlowController implements ConnectionFlow {
 
 	@Override
 	public ChannelFuture writeToServer(Object obj) {
-		if (serverChannel!=null) {
+		if (serverChannel != null) {
 			obj = ProxyUtil.transformRequestToServer(obj, isKeepAlive);
 			ChannelFuture writeAndFlush = serverChannel.writeAndFlush(obj);
 			writeAndFlush.addListener(new WriteFutureListener());
@@ -148,11 +156,23 @@ public class ConnectionFlowController implements ConnectionFlow {
 		} else {
 			LOG.log(Level.SEVERE, "Server connection is not established");
 			return null;
-		}	
+		}
 	}
 
 	public HttpFilters getHttpFilters() {
 		return httpFilters;
+	}
+
+	private void setUpAggregator(ChannelPipeline pipeline) {
+		int maxAggregatedContentLength = httpFiltersSource.getMaximumResponseBufferSizeInBytes();
+		if (maxAggregatedContentLength > 0) {
+			if (pipeline.get(INFLATOR) == null) {
+				pipeline.addBefore(HANDLER, INFLATOR, new HttpContentDecompressor());
+			}
+			if (pipeline.get(AGGREGATOR) == null) {
+				pipeline.addBefore(INFLATOR, AGGREGATOR, new HttpObjectAggregator(maxAggregatedContentLength));
+			}
+		}
 	}
 
 	private class ProxyToSererChannelInitializer extends ChannelInitializer<SocketChannel> {
@@ -167,18 +187,14 @@ public class ConnectionFlowController implements ConnectionFlow {
 		protected void initChannel(SocketChannel channel) throws Exception {
 			ChannelPipeline pipeline = channel.pipeline();
 			pipeline.addLast(new HttpClientCodec(
-				config.getMaxInitialLineLength(),
-                config.getMaxHeaderSize(),
-                config.getMaxChunkSize()			
+					config.getMaxInitialLineLength(),
+					config.getMaxHeaderSize(),
+					config.getMaxChunkSize()
 			));
 			int idleServerTimeOut = config.getIdleServerTimeOut();
-			channel.pipeline().addLast("idleStateHandler", new IdleStateHandler(0, 0, idleServerTimeOut, TimeUnit.SECONDS));
-			int maxAggregatedContentLength = httpFiltersSource.getMaximumResponseBufferSizeInBytes();
-			if (maxAggregatedContentLength > 0) {
-				pipeline.addLast(INFLATER, new HttpContentDecompressor());
-				pipeline.addLast(AGGREGATOR, new HttpObjectAggregator(maxAggregatedContentLength));
-			}
-			pipeline.addLast("handler", new ProxyToServerConnectionAdaper(ConnectionFlowController.this));
+			pipeline.addLast("idleStateHandler", new IdleStateHandler(0, 0, idleServerTimeOut, TimeUnit.SECONDS));
+			pipeline.addLast(HANDLER, new ProxyToServerConnectionAdaper(ConnectionFlowController.this));
+			setUpAggregator(pipeline);
 		}
 
 	}

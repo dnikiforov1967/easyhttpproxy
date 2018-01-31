@@ -51,9 +51,7 @@ public class ClientToProxyConnectionAdapter extends ChannelInboundHandlerAdapter
 		if (msg instanceof HttpObject) {
 			if (msg instanceof HttpRequest) {
 				HttpRequest request = (HttpRequest)msg;
-				if (httpFilters==null) {
-					httpFilters = httpFiltersSource.filterRequest(request, ctx);
-				}	
+				httpFilters = httpFiltersSource.filterRequest(request, ctx);
 			}
 			HttpResponse response = httpFilters.clientToProxyRequest((HttpObject) msg);
 			if (response != null) {
@@ -72,6 +70,8 @@ public class ClientToProxyConnectionAdapter extends ChannelInboundHandlerAdapter
 				flowController = new ConnectionFlowController(clientChannel, request, httpFiltersSource, httpFilters, config, serverGroup);
 				//close event should be handled
 				flowController.handleClientClose();
+			} else {
+				flowController.setHttpFilters(httpFilters);
 			}
 			flowController.init(request);
 		}
@@ -89,7 +89,7 @@ public class ClientToProxyConnectionAdapter extends ChannelInboundHandlerAdapter
 	public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
 		try {
 			if (evt instanceof IdleStateEvent) {
-				LOG.log(Level.INFO, "Client connection {0} to proxy timed out", ctx.channel().remoteAddress());
+				LOG.log(Level.FINE, "Client connection {0} to proxy timed out", ctx.channel().remoteAddress());
 				ctx.close();
 			}
 		} finally {

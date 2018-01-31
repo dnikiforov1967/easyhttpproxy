@@ -15,7 +15,8 @@ import io.netty.handler.codec.http.HttpRequest;
 public interface ConnectionFlow {
 
 	String AGGREGATOR = "aggregator";
-	String INFLATER = "inflater";	
+	String INFLATOR = "inflator";
+	String HANDLER = "handler";	
 	
 	ChannelFuture writeToClient(Object obj);
 
@@ -26,4 +27,6 @@ public interface ConnectionFlow {
 	void init(HttpRequest request) throws InterruptedException;
 	
 	HttpFilters getHttpFilters();
+	
+	void setHttpFilters(HttpFilters httpFilters);
 }
