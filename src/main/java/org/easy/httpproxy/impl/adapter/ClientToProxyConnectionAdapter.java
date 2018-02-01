@@ -5,7 +5,6 @@
  */
 package org.easy.httpproxy.impl.adapter;
 
-import org.easy.httpproxy.impl.controller.ConnectionFlowController;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.http.HttpObject;
@@ -14,12 +13,12 @@ import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.timeout.IdleStateEvent;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.easy.httpproxy.core.ConnectionFlow;
-import org.easy.httpproxy.impl.server.ProxyBootstrap.Config;
 import io.netty.channel.Channel;
-import org.easy.httpproxy.core.HttpFilters;
-import org.easy.httpproxy.core.HttpFiltersSource;
 import io.netty.channel.nio.NioEventLoopGroup;
+import org.easy.httpproxy.core.ConnectionFlow;
+import org.easy.httpproxy.core.HttpFiltersSource;
+import org.easy.httpproxy.impl.controller.ConnectionFlowController;
+import org.easy.httpproxy.impl.server.ProxyBootstrap.Config;
 
 /**
  *
@@ -33,7 +32,6 @@ public class ClientToProxyConnectionAdapter extends ChannelInboundHandlerAdapter
 	private final HttpFiltersSource httpFiltersSource;
 	private final NioEventLoopGroup serverGroup;
 	private final Config config;
-	private HttpFilters httpFilters;
 
 	public ClientToProxyConnectionAdapter(HttpFiltersSource httpFiltersSource, Config config, NioEventLoopGroup serverGroup) {
 		this.httpFiltersSource = httpFiltersSource;
@@ -48,12 +46,20 @@ public class ClientToProxyConnectionAdapter extends ChannelInboundHandlerAdapter
 	}
 
 	private void proceedInboundMessage(Object msg, ChannelHandlerContext ctx) throws InterruptedException {
+		HttpResponse response = null;
 		if (msg instanceof HttpObject) {
 			if (msg instanceof HttpRequest) {
 				HttpRequest request = (HttpRequest) msg;
-				httpFilters = httpFiltersSource.filterRequest(request, ctx);
+				if (flowController == null) {
+					Channel clientChannel = ctx.channel();
+					flowController = new ConnectionFlowController(clientChannel, httpFiltersSource, config, serverGroup);
+					//close event should be handled
+					flowController.handleClientClose();
+				}
+				response = flowController.init(request, ctx);
+			} else {
+				response = flowController.clientToProxyRequest((HttpObject) msg);
 			}
-			HttpResponse response = httpFilters.clientToProxyRequest((HttpObject) msg);
 			if (response != null) {
 				ctx.writeAndFlush(response);
 			} else {
@@ -63,17 +69,6 @@ public class ClientToProxyConnectionAdapter extends ChannelInboundHandlerAdapter
 	}
 
 	private void prodceedHttpMessage(Object msg, ChannelHandlerContext ctx) throws InterruptedException {
-		if (msg instanceof HttpRequest) {
-			HttpRequest request = (HttpRequest) msg;
-			if (flowController == null) {
-				Channel clientChannel = ctx.channel();
-				flowController = new ConnectionFlowController(clientChannel, httpFiltersSource, config, serverGroup);
-				//close event should be handled
-				flowController.handleClientClose();
-			}
-			flowController.setHttpFilters(httpFilters);
-			flowController.init(request);
-		}
 		flowController.writeToServer(msg);
 	}
 

@@ -5,11 +5,6 @@
  */
 package org.easy.httpproxy.impl.controller;
 
-import org.easy.httpproxy.impl.listener.ClientConnectionClosingFutureListener;
-import org.easy.httpproxy.impl.listener.ServerConnectionClosingFutureListener;
-import org.easy.httpproxy.impl.listener.ServerConnectionOpeningFutureListener;
-import org.easy.httpproxy.impl.socket.ExtendedNioSocketChannel;
-import org.easy.httpproxy.impl.util.ProxyUtil;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -24,9 +19,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.easy.httpproxy.core.ConnectionFlow;
-import org.easy.httpproxy.impl.adapter.ProxyToServerConnectionAdaper;
-import org.easy.httpproxy.impl.server.ProxyBootstrap.Config;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.socket.SocketChannel;
@@ -34,10 +26,19 @@ import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.timeout.IdleStateHandler;
 import java.util.concurrent.TimeUnit;
-import org.easy.httpproxy.impl.listener.WriteFutureListener;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.http.HttpContentDecompressor;
+import org.easy.httpproxy.core.ConnectionFlow;
 import org.easy.httpproxy.core.HttpFilters;
 import org.easy.httpproxy.core.HttpFiltersSource;
-import io.netty.handler.codec.http.HttpContentDecompressor;
+import org.easy.httpproxy.impl.adapter.ProxyToServerConnectionAdaper;
+import org.easy.httpproxy.impl.listener.ClientConnectionClosingFutureListener;
+import org.easy.httpproxy.impl.listener.ServerConnectionClosingFutureListener;
+import org.easy.httpproxy.impl.listener.ServerConnectionOpeningFutureListener;
+import org.easy.httpproxy.impl.listener.WriteFutureListener;
+import org.easy.httpproxy.impl.server.ProxyBootstrap.Config;
+import org.easy.httpproxy.impl.socket.ExtendedNioSocketChannel;
+import org.easy.httpproxy.impl.util.ProxyUtil;
 
 /**
  * This class is going to be the mediator between client2proxy and proxy2server
@@ -63,11 +64,6 @@ public class ConnectionFlowController implements ConnectionFlow {
 		this.httpFiltersSource = httpFiltersSource;
 		this.config = config;
 		this.serverGroup = serverGroup;
-	}
-
-	@Override
-	public void setHttpFilters(HttpFilters httpFilters) {
-		this.httpFilters = httpFilters;
 	}
 
 	@Override
@@ -97,17 +93,17 @@ public class ConnectionFlowController implements ConnectionFlow {
 		//The connection should not be closed till the first write/read operation
 		//due to timeout. For this selected() should be called
 		if (serverChannel == null || !serverChannel.lock()) {
+			LOG.info("Create new server connection");
 			initiateNewConnection(resolveTargetServer);
 		} else {
 			LOG.info("Use existing server connection");
-			ChannelPipeline pipeline = serverChannel.pipeline();
-			setUpAggregator(pipeline);
-			httpFilters.proxyToServerConnectionSucceeded(pipeline);
 		}
+		ChannelPipeline pipeline = serverChannel.pipeline();
+		setUpAggregator(pipeline);
+		httpFilters.proxyToServerConnectionSucceeded(pipeline);
 	}
 
 	private void initiateNewConnection(SocketAddress resolveTargetServer) throws InterruptedException {
-		LOG.info("Create new server connection");
 		Bootstrap bootstrap = new Bootstrap().group(serverGroup)
 				.channel(ExtendedNioSocketChannel.class)
 				.remoteAddress(resolveTargetServer)
@@ -115,6 +111,7 @@ public class ConnectionFlowController implements ConnectionFlow {
 		ChannelFuture connectFuture = bootstrap.connect();
 		ServerConnectionOpeningFutureListener futureListener = new ServerConnectionOpeningFutureListener(httpFilters);
 		connectFuture.addListener(futureListener);
+		//This statement is blocking and throws exception in case of failure
 		connectFuture.sync();
 		serverChannel = (ExtendedNioSocketChannel) connectFuture.channel();
 		listenServerChannelOnClose(serverChannel);
@@ -122,11 +119,14 @@ public class ConnectionFlowController implements ConnectionFlow {
 	}
 
 	@Override
-	public void init(HttpRequest request) throws InterruptedException {
+	public HttpResponse init(HttpRequest request, ChannelHandlerContext ctx) throws InterruptedException {
 		if (HttpUtil.isKeepAlive(request)) {
 			isKeepAlive = true;
 		}
+		httpFilters = httpFiltersSource.filterRequest(request, ctx);
+		HttpResponse response = clientToProxyRequest(request);
 		setUpServerConnection(request);
+		return response;
 	}
 
 	@Override
@@ -172,6 +172,12 @@ public class ConnectionFlowController implements ConnectionFlow {
 		}
 	}
 
+	@Override
+	public HttpResponse clientToProxyRequest(HttpObject msg) {
+		HttpResponse response = httpFilters.clientToProxyRequest(msg);
+		return response;
+	}
+
 	private class ProxyToSererChannelInitializer extends ChannelInitializer<SocketChannel> {
 
 		@Override
@@ -185,7 +191,6 @@ public class ConnectionFlowController implements ConnectionFlow {
 			int idleServerTimeOut = config.getIdleServerTimeOut();
 			pipeline.addLast("idleStateHandler", new IdleStateHandler(0, 0, idleServerTimeOut, TimeUnit.SECONDS));
 			pipeline.addLast(HANDLER, new ProxyToServerConnectionAdaper(ConnectionFlowController.this));
-			setUpAggregator(pipeline);
 		}
 
 	}

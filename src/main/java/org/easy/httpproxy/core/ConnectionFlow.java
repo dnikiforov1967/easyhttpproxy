@@ -6,7 +6,10 @@
 package org.easy.httpproxy.core;
 
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpResponse;
 
 /**
  *
@@ -24,9 +27,9 @@ public interface ConnectionFlow {
 
 	void handleClientClose();
 	
-	void init(HttpRequest request) throws InterruptedException;
+	HttpResponse init(HttpRequest request, ChannelHandlerContext ctx) throws InterruptedException;
 	
 	HttpFilters getHttpFilters();
-	
-	void setHttpFilters(HttpFilters httpFilters);
+
+	HttpResponse clientToProxyRequest(HttpObject msg);
 }
