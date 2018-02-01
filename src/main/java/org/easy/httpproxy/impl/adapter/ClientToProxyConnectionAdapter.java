@@ -37,9 +37,9 @@ public class ClientToProxyConnectionAdapter extends ChannelInboundHandlerAdapter
 
 	public ClientToProxyConnectionAdapter(HttpFiltersSource httpFiltersSource, Config config, NioEventLoopGroup serverGroup) {
 		this.httpFiltersSource = httpFiltersSource;
-		this.config=config;
+		this.config = config;
 		this.serverGroup = serverGroup;
-		
+
 	}
 
 	@Override
@@ -50,7 +50,7 @@ public class ClientToProxyConnectionAdapter extends ChannelInboundHandlerAdapter
 	private void proceedInboundMessage(Object msg, ChannelHandlerContext ctx) throws InterruptedException {
 		if (msg instanceof HttpObject) {
 			if (msg instanceof HttpRequest) {
-				HttpRequest request = (HttpRequest)msg;
+				HttpRequest request = (HttpRequest) msg;
 				httpFilters = httpFiltersSource.filterRequest(request, ctx);
 			}
 			HttpResponse response = httpFilters.clientToProxyRequest((HttpObject) msg);
@@ -67,12 +67,11 @@ public class ClientToProxyConnectionAdapter extends ChannelInboundHandlerAdapter
 			HttpRequest request = (HttpRequest) msg;
 			if (flowController == null) {
 				Channel clientChannel = ctx.channel();
-				flowController = new ConnectionFlowController(clientChannel, request, httpFiltersSource, httpFilters, config, serverGroup);
+				flowController = new ConnectionFlowController(clientChannel, httpFiltersSource, config, serverGroup);
 				//close event should be handled
 				flowController.handleClientClose();
-			} else {
-				flowController.setHttpFilters(httpFilters);
 			}
+			flowController.setHttpFilters(httpFilters);
 			flowController.init(request);
 		}
 		flowController.writeToServer(msg);

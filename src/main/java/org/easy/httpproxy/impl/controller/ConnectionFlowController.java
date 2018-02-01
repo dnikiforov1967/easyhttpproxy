@@ -53,16 +53,13 @@ public class ConnectionFlowController implements ConnectionFlow {
 	private volatile ExtendedNioSocketChannel serverChannel;
 	private final Map<SocketAddress, ExtendedNioSocketChannel> proxyToServerChannels = new ConcurrentHashMap<>();
 	private volatile boolean isKeepAlive = false;
-	private final HttpRequest request;
 	private HttpFilters httpFilters;
 	private final HttpFiltersSource httpFiltersSource;
 	private final NioEventLoopGroup serverGroup;
 	private final Config config;
 
-	public ConnectionFlowController(Channel clientChannel, HttpRequest request, HttpFiltersSource httpFiltersSource, HttpFilters httpFilters, Config config, NioEventLoopGroup serverGroup) {
+	public ConnectionFlowController(Channel clientChannel, HttpFiltersSource httpFiltersSource, Config config, NioEventLoopGroup serverGroup) {
 		this.clientChannel = clientChannel;
-		this.request = request;
-		this.httpFilters = httpFilters;
 		this.httpFiltersSource = httpFiltersSource;
 		this.config = config;
 		this.serverGroup = serverGroup;
@@ -100,21 +97,21 @@ public class ConnectionFlowController implements ConnectionFlow {
 		//The connection should not be closed till the first write/read operation
 		//due to timeout. For this selected() should be called
 		if (serverChannel == null || !serverChannel.lock()) {
-			initiateNewConnection(resolveTargetServer, request);
+			initiateNewConnection(resolveTargetServer);
 		} else {
 			LOG.info("Use existing server connection");
 			ChannelPipeline pipeline = serverChannel.pipeline();
-			setUpAggregator(pipeline);			
+			setUpAggregator(pipeline);
 			httpFilters.proxyToServerConnectionSucceeded(pipeline);
 		}
 	}
 
-	private void initiateNewConnection(SocketAddress resolveTargetServer, HttpRequest request) throws InterruptedException {
+	private void initiateNewConnection(SocketAddress resolveTargetServer) throws InterruptedException {
 		LOG.info("Create new server connection");
 		Bootstrap bootstrap = new Bootstrap().group(serverGroup)
 				.channel(ExtendedNioSocketChannel.class)
 				.remoteAddress(resolveTargetServer)
-				.handler(new ProxyToSererChannelInitializer(request));
+				.handler(new ProxyToSererChannelInitializer());
 		ChannelFuture connectFuture = bootstrap.connect();
 		ServerConnectionOpeningFutureListener futureListener = new ServerConnectionOpeningFutureListener(httpFilters);
 		connectFuture.addListener(futureListener);
@@ -176,12 +173,6 @@ public class ConnectionFlowController implements ConnectionFlow {
 	}
 
 	private class ProxyToSererChannelInitializer extends ChannelInitializer<SocketChannel> {
-
-		private final HttpRequest request;
-
-		public ProxyToSererChannelInitializer(HttpRequest request) {
-			this.request = request;
-		}
 
 		@Override
 		protected void initChannel(SocketChannel channel) throws Exception {
