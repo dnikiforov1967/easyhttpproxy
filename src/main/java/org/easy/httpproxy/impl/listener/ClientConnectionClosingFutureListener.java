@@ -5,10 +5,10 @@
  */
 package org.easy.httpproxy.impl.listener;
 
-import org.easy.httpproxy.impl.socket.ExtendedNioSocketChannel;
 import io.netty.channel.ChannelFuture;
 import java.net.SocketAddress;
 import java.util.Map;
+import org.easy.httpproxy.impl.socket.ExtendedNioSocketChannel;
 
 
 /**
@@ -30,7 +30,7 @@ public class ClientConnectionClosingFutureListener extends ConnectionClosingFutu
 			}
 		});
 		map.clear();
-		LOG.info("Connection map is cleared");
+		LOG.fine("Connection map is cleared");
 		super.operationComplete(f);
 	}
 

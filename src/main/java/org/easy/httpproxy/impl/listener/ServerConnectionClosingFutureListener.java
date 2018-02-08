@@ -5,11 +5,11 @@
  */
 package org.easy.httpproxy.impl.listener;
 
-import org.easy.httpproxy.impl.socket.ExtendedNioSocketChannel;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import java.net.SocketAddress;
 import java.util.Map;
+import org.easy.httpproxy.impl.socket.ExtendedNioSocketChannel;
 
 
 /**
@@ -28,9 +28,9 @@ public class ServerConnectionClosingFutureListener extends ConnectionClosingFutu
 		SocketAddress remoteAddress = channel.remoteAddress();
 		boolean remove = getMap().remove(remoteAddress, channel);
 		if (remove) {
-			LOG.info("Server connection was removed");
+			LOG.fine("Server connection was removed");
 		} else {
-			LOG.info("Connection was not found in map");
+			LOG.fine("Connection was not found in map");
 		}
 		super.operationComplete(f); //To change body of generated methods, choose Tools | Templates.
 	}

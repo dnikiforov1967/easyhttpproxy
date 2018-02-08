@@ -19,17 +19,21 @@ public interface ConnectionFlow {
 
 	String AGGREGATOR = "aggregator";
 	String INFLATOR = "inflator";
-	String HANDLER = "handler";	
-	
-	ChannelFuture writeToClient(Object obj);
+	String HANDLER = "handler";
 
-	ChannelFuture writeToServer(Object obj);
+	ChannelFuture writeToClient(Object obj, boolean flush);
 
-	void handleClientClose();
+	ChannelFuture writeToServer(Object obj, boolean flush);
 	
+	void flushToClient();
+	
+	void flushToServer();
+
+	void setUpCloseClientHandler();
+
 	HttpResponse init(HttpRequest request, ChannelHandlerContext ctx) throws InterruptedException;
-	
-	HttpFilters getHttpFilters();
 
-	HttpResponse clientToProxyRequest(HttpObject msg);
+	HttpResponse fireClientToProxyRequest(HttpObject msg);
+
+	void fireServerToProxyResponse(HttpObject msg);
 }

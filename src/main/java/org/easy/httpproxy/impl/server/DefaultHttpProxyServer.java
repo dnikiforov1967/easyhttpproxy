@@ -7,7 +7,7 @@ package org.easy.httpproxy.impl.server;
 
 import org.easy.httpproxy.core.HttpFiltersSource;
 import org.easy.httpproxy.core.HttpProxyServer;
-import java.net.InetSocketAddress;
+
 
 /**
  *
@@ -25,23 +25,39 @@ public final class DefaultHttpProxyServer implements HttpProxyServer {
 		return new DefaultHttpProxyServer();
 	}
 	
+	@Override
 	public DefaultHttpProxyServer withPort(int port) {
 		proxyBootstrap.port(port);
 		return this;
 	}
 	
+	@Override
 	public DefaultHttpProxyServer withThreadPoolConfiguration(ThreadPoolConfiguration threadPoolConfiguration) {
 		proxyBootstrap.setThreadPoolConfiguration(threadPoolConfiguration);
 		return this;
 	}
 	
+	@Override
 	public DefaultHttpProxyServer withFiltersSource(HttpFiltersSource httpFiltersSource) {
 		proxyBootstrap.setHttpFiltersSource(httpFiltersSource);
 		return this;
 	}
 	
+	@Override
 	public DefaultHttpProxyServer withName(String proxyName) {
 		proxyBootstrap.setName(proxyName);
+		return this;
+	}
+
+	@Override
+	public DefaultHttpProxyServer withConnectTimeout(final int connectTimeout) {
+		proxyBootstrap.setConnectTimeout(connectTimeout);
+		return this;
+	}
+
+	@Override
+	public DefaultHttpProxyServer withIdleConnectionTimeout(final int idleConnectionTimeout) {
+		proxyBootstrap.setIdleConnectionTimeout(idleConnectionTimeout);
 		return this;
 	}
 	

@@ -46,24 +46,8 @@ public class HttpFiltersAdapter implements HttpFilters {
     }
 
     @Override
-    public void proxyToServerRequestSending() {
-    }
-
-    @Override
-    public void proxyToServerRequestSent() {
-    }
-
-    @Override
     public HttpObject serverToProxyResponse(HttpObject httpObject) {
         return httpObject;
-    }
-
-    @Override
-    public void serverToProxyResponseTimedOut() {
-    }
-
-    @Override
-    public void serverToProxyResponseReceiving() {
     }
 
     @Override
@@ -71,35 +55,9 @@ public class HttpFiltersAdapter implements HttpFilters {
     }
 
     @Override
-    public HttpObject proxyToClientResponse(HttpObject httpObject) {
-        return httpObject;
-    }
-
-    @Override
-    public void proxyToServerConnectionQueued() {
-    }
-
-    @Override
     public InetSocketAddress proxyToServerResolutionStarted(
             HttpObject httpObject) {
         return null;
-    }
-
-    @Override
-    public void proxyToServerResolutionFailed(String hostAndPort) {
-    }
-
-    @Override
-    public void proxyToServerResolutionSucceeded(String serverHostAndPort,
-            InetSocketAddress resolvedRemoteAddress) {
-    }
-
-    @Override
-    public void proxyToServerConnectionStarted() {
-    }
-
-    @Override
-    public void proxyToServerConnectionSSLHandshakeStarted() {
     }
 
     @Override

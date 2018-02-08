@@ -27,6 +27,7 @@ import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.timeout.IdleStateHandler;
 import java.util.concurrent.TimeUnit;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelOption;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import org.easy.httpproxy.core.ConnectionFlow;
 import org.easy.httpproxy.core.HttpFilters;
@@ -35,7 +36,6 @@ import org.easy.httpproxy.impl.adapter.ProxyToServerConnectionAdaper;
 import org.easy.httpproxy.impl.listener.ClientConnectionClosingFutureListener;
 import org.easy.httpproxy.impl.listener.ServerConnectionClosingFutureListener;
 import org.easy.httpproxy.impl.listener.ServerConnectionOpeningFutureListener;
-import org.easy.httpproxy.impl.listener.WriteFutureListener;
 import org.easy.httpproxy.impl.server.ProxyBootstrap.Config;
 import org.easy.httpproxy.impl.socket.ExtendedNioSocketChannel;
 import org.easy.httpproxy.impl.util.ProxyUtil;
@@ -67,7 +67,7 @@ public class ConnectionFlowController implements ConnectionFlow {
 	}
 
 	@Override
-	public void handleClientClose() {
+	public void setUpCloseClientHandler() {
 		listenClientChannelOnClose(clientChannel);
 	}
 
@@ -93,10 +93,10 @@ public class ConnectionFlowController implements ConnectionFlow {
 		//The connection should not be closed till the first write/read operation
 		//due to timeout. For this selected() should be called
 		if (serverChannel == null || !serverChannel.lock()) {
-			LOG.info("Create new server connection");
+			LOG.fine("Create new server connection");
 			initiateNewConnection(resolveTargetServer);
 		} else {
-			LOG.info("Use existing server connection");
+			LOG.fine("Use existing server connection");
 		}
 		ChannelPipeline pipeline = serverChannel.pipeline();
 		setUpAggregator(pipeline);
@@ -107,6 +107,8 @@ public class ConnectionFlowController implements ConnectionFlow {
 		Bootstrap bootstrap = new Bootstrap().group(serverGroup)
 				.channel(ExtendedNioSocketChannel.class)
 				.remoteAddress(resolveTargetServer)
+				.option(ChannelOption.CONNECT_TIMEOUT_MILLIS,
+						config.getConnectTimeout())
 				.handler(new ProxyToSererChannelInitializer());
 		ChannelFuture connectFuture = bootstrap.connect();
 		ServerConnectionOpeningFutureListener futureListener = new ServerConnectionOpeningFutureListener(httpFilters);
@@ -124,42 +126,51 @@ public class ConnectionFlowController implements ConnectionFlow {
 			isKeepAlive = true;
 		}
 		httpFilters = httpFiltersSource.filterRequest(request, ctx);
-		HttpResponse response = clientToProxyRequest(request);
-		setUpServerConnection(request);
+		HttpResponse response = fireClientToProxyRequest(request);
+		if (response == null) {
+			setUpServerConnection(request);
+		}
 		return response;
 	}
 
 	@Override
-	public ChannelFuture writeToClient(Object obj) {
-		obj = ProxyUtil.transformAnswerToClient((HttpObject) obj);
+	public ChannelFuture writeToClient(Object obj, boolean flush) {
 		if (obj instanceof FullHttpResponse) {
 			ProxyUtil.setLengthHeader((FullHttpResponse) obj);
 		} else if (obj instanceof HttpResponse) {
 			ProxyUtil.setChunkHeader(obj);
 		}
 		ProxyUtil.setConnectionHeader(obj, isKeepAlive);
-		ChannelFuture writeAndFlush = clientChannel.writeAndFlush(obj);
-		return writeAndFlush;
+		ChannelFuture writeFuture = null;
+		if (flush) {
+			writeFuture = clientChannel.writeAndFlush(obj);
+		} else {
+			writeFuture = clientChannel.write(obj);
+		}
+		return writeFuture;
 	}
 
 	@Override
-	public ChannelFuture writeToServer(Object obj) {
+	public ChannelFuture writeToServer(Object obj, boolean flush) {
 		if (serverChannel != null) {
 			obj = ProxyUtil.transformRequestToServer(obj, isKeepAlive);
-			ChannelFuture writeAndFlush = serverChannel.writeAndFlush(obj);
-			writeAndFlush.addListener(new WriteFutureListener());
+			ChannelFuture writeFuture = null;
+			if (flush) {
+				writeFuture = serverChannel.writeAndFlush(obj);
+			} else {
+				writeFuture = serverChannel.write(obj);
+			}
 			LOG.log(Level.FINE, "Write to server {0}", obj.getClass().getName());
-			return writeAndFlush;
+			return writeFuture;
 		} else {
 			LOG.log(Level.SEVERE, "Server connection is not established");
 			return null;
 		}
 	}
 
-	public HttpFilters getHttpFilters() {
-		return httpFilters;
-	}
-
+	//public HttpFilters getHttpFilters() {
+	//	return httpFilters;
+	//}
 	private void setUpAggregator(ChannelPipeline pipeline) {
 		int maxAggregatedContentLength = httpFiltersSource.getMaximumResponseBufferSizeInBytes();
 		if (maxAggregatedContentLength > 0) {
@@ -173,9 +184,24 @@ public class ConnectionFlowController implements ConnectionFlow {
 	}
 
 	@Override
-	public HttpResponse clientToProxyRequest(HttpObject msg) {
+	public HttpResponse fireClientToProxyRequest(HttpObject msg) {
 		HttpResponse response = httpFilters.clientToProxyRequest(msg);
 		return response;
+	}
+
+	@Override
+	public void fireServerToProxyResponse(HttpObject msg) {
+		httpFilters.serverToProxyResponse(msg);
+	}
+
+	@Override
+	public void flushToClient() {
+		clientChannel.flush();
+	}
+
+	@Override
+	public void flushToServer() {
+		serverChannel.flush();
 	}
 
 	private class ProxyToSererChannelInitializer extends ChannelInitializer<SocketChannel> {
@@ -188,7 +214,7 @@ public class ConnectionFlowController implements ConnectionFlow {
 					config.getMaxHeaderSize(),
 					config.getMaxChunkSize()
 			));
-			int idleServerTimeOut = config.getIdleServerTimeOut();
+			int idleServerTimeOut = config.getIdleConnectionTimeout();
 			pipeline.addLast("idleStateHandler", new IdleStateHandler(0, 0, idleServerTimeOut, TimeUnit.SECONDS));
 			pipeline.addLast(HANDLER, new ProxyToServerConnectionAdaper(ConnectionFlowController.this));
 		}

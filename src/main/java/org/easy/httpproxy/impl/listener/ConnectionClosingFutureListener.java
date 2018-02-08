@@ -5,13 +5,13 @@
  */
 package org.easy.httpproxy.impl.listener;
 
-import org.easy.httpproxy.impl.socket.ExtendedNioSocketChannel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import java.net.SocketAddress;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.easy.httpproxy.impl.socket.ExtendedNioSocketChannel;
 
 /**
  * This listener executes base operation - it shutdowns event loop thread group related to particular channel
@@ -34,7 +34,7 @@ public abstract class ConnectionClosingFutureListener implements ChannelFutureLi
 	
 	@Override
 	public void operationComplete(ChannelFuture f) throws Exception {
-		LOG.log(Level.INFO, "Future " + f.toString() + " was completed");
+		LOG.log(Level.FINE, "Future " + f.toString() + " was completed");
 	}
 
 }

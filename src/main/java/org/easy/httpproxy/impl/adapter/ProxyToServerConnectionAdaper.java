@@ -5,13 +5,13 @@
  */
 package org.easy.httpproxy.impl.adapter;
 
-import org.easy.httpproxy.impl.socket.ExtendedNioSocketChannel;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.HttpObject;
 import java.util.logging.Logger;
-import org.easy.httpproxy.core.ConnectionFlow;
+import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.timeout.IdleStateEvent;
+import org.easy.httpproxy.core.ConnectionFlow;
+import org.easy.httpproxy.impl.socket.ExtendedNioSocketChannel;
 
 /**
  * Simplest handler what accepts client channel as a parameter and read server
@@ -19,7 +19,7 @@ import io.netty.handler.timeout.IdleStateEvent;
  *
  * @author dnikiforov
  */
-public class ProxyToServerConnectionAdaper extends SimpleChannelInboundHandler {
+public class ProxyToServerConnectionAdaper extends ChannelInboundHandlerAdapter {
 
 	private static final Logger LOG = Logger.getLogger(ProxyToServerConnectionAdaper.class.getName());
 
@@ -29,26 +29,11 @@ public class ProxyToServerConnectionAdaper extends SimpleChannelInboundHandler {
 		this.flowController = controller;
 	}
 
-	public ProxyToServerConnectionAdaper(final ConnectionFlow controller, boolean autoRelease) {
-		super(autoRelease);
-		this.flowController = controller;
-	}
-
-	public ProxyToServerConnectionAdaper(final ConnectionFlow controller, Class inboundMessageType) {
-		super(inboundMessageType);
-		this.flowController = controller;
-	}
-
-	public ProxyToServerConnectionAdaper(final ConnectionFlow controller, Class inboundMessageType, boolean autoRelease) {
-		super(inboundMessageType, autoRelease);
-		this.flowController = controller;
-	}
-
 	@Override
-	protected void channelRead0(ChannelHandlerContext chc, Object obj) throws Exception {
-		if (obj instanceof HttpObject) {
-			flowController.getHttpFilters().serverToProxyResponse((HttpObject)obj);
-			flowController.writeToClient(obj);
+	public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+		if (msg instanceof HttpObject) {
+			flowController.fireServerToProxyResponse((HttpObject)msg);
+			flowController.writeToClient(msg, true);
 		}
 	}
 
@@ -62,5 +47,12 @@ public class ProxyToServerConnectionAdaper extends SimpleChannelInboundHandler {
 			}
 		}
 	}
+	
+	@Override
+	public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+		// Close the connection when an exception is raised.
+		cause.printStackTrace();
+		ctx.close();
+	}	
 
 }

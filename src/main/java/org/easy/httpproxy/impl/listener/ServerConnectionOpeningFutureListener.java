@@ -5,13 +5,10 @@
  */
 package org.easy.httpproxy.impl.listener;
 
-import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
-import io.netty.channel.EventLoop;
 import org.easy.httpproxy.core.HttpFilters;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelPipeline;
+
 
 
 /**
@@ -32,11 +29,7 @@ public class ServerConnectionOpeningFutureListener implements ChannelFutureListe
 	public void operationComplete(ChannelFuture future) throws Exception {
 		if (!future.isSuccess()) {
 			httpFilters.proxyToServerConnectionFailed();
-		} else {
-			ChannelPipeline pipeline = future.channel().pipeline();
-			httpFilters.proxyToServerConnectionSucceeded(pipeline);
 		}
-		
 	}
 
 }

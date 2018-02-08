@@ -15,6 +15,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import io.netty.channel.Channel;
 import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.handler.codec.http.LastHttpContent;
+import io.netty.util.ReferenceCounted;
 import org.easy.httpproxy.core.ConnectionFlow;
 import org.easy.httpproxy.core.HttpFiltersSource;
 import org.easy.httpproxy.impl.controller.ConnectionFlowController;
@@ -32,6 +34,7 @@ public class ClientToProxyConnectionAdapter extends ChannelInboundHandlerAdapter
 	private final HttpFiltersSource httpFiltersSource;
 	private final NioEventLoopGroup serverGroup;
 	private final Config config;
+	private boolean shortCircle = false;
 
 	public ClientToProxyConnectionAdapter(HttpFiltersSource httpFiltersSource, Config config, NioEventLoopGroup serverGroup) {
 		this.httpFiltersSource = httpFiltersSource;
@@ -49,27 +52,42 @@ public class ClientToProxyConnectionAdapter extends ChannelInboundHandlerAdapter
 		HttpResponse response = null;
 		if (msg instanceof HttpObject) {
 			if (msg instanceof HttpRequest) {
+				//The request header means new flow cycle 
+				shortCircle = false;
 				HttpRequest request = (HttpRequest) msg;
 				if (flowController == null) {
 					Channel clientChannel = ctx.channel();
 					flowController = new ConnectionFlowController(clientChannel, httpFiltersSource, config, serverGroup);
 					//close event should be handled
-					flowController.handleClientClose();
+					flowController.setUpCloseClientHandler();
 				}
 				response = flowController.init(request, ctx);
 			} else {
-				response = flowController.clientToProxyRequest((HttpObject) msg);
+				response = flowController.fireClientToProxyRequest((HttpObject) msg);
 			}
+			//Non-null response means the short circle
 			if (response != null) {
-				ctx.writeAndFlush(response);
+				shortCircle = true;
+			}
+			//Short circle means no communication to server 
+			if (shortCircle) {
+				//Unused message release
+				if (msg instanceof ReferenceCounted) {
+					((ReferenceCounted) msg).release();
+				}
+				//response can be null if short circle includes several steps
+				//response should not be flushed by default
+				if (response!=null) {
+					flowController.writeToClient(response, false);
+				}
+				//If the last part of request got the response should be completely flushed
+				if (msg instanceof LastHttpContent) {
+					flowController.flushToClient();
+				}
 			} else {
-				prodceedHttpMessage(msg, ctx);
+				flowController.writeToServer(msg, true);
 			}
 		}
-	}
-
-	private void prodceedHttpMessage(Object msg, ChannelHandlerContext ctx) throws InterruptedException {
-		flowController.writeToServer(msg);
 	}
 
 	@Override
