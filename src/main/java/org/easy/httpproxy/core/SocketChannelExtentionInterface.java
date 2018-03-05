@@ -9,7 +9,9 @@ package org.easy.httpproxy.core;
  *
  * @author dnikiforov
  */
-public interface ConnectionState {
+public interface SocketChannelExtentionInterface {
 	boolean lock();
 	boolean unlock();
+	void setFlowCompleted(boolean isCompleted);
+	boolean isFlowCompleted();
 }

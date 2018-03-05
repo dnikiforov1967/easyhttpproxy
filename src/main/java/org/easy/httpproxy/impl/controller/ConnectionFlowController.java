@@ -29,6 +29,7 @@ import java.util.concurrent.TimeUnit;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelOption;
 import io.netty.handler.codec.http.HttpContentDecompressor;
+import io.netty.handler.codec.http.LastHttpContent;
 import org.easy.httpproxy.core.ConnectionFlow;
 import org.easy.httpproxy.core.HttpFilters;
 import org.easy.httpproxy.core.HttpFiltersSource;
@@ -36,6 +37,7 @@ import org.easy.httpproxy.impl.adapter.ProxyToServerConnectionAdaper;
 import org.easy.httpproxy.impl.listener.ClientConnectionClosingFutureListener;
 import org.easy.httpproxy.impl.listener.ServerConnectionClosingFutureListener;
 import org.easy.httpproxy.impl.listener.ServerConnectionOpeningFutureListener;
+import org.easy.httpproxy.impl.listener.WriteToServerFutureListener;
 import org.easy.httpproxy.impl.server.ProxyBootstrap.Config;
 import org.easy.httpproxy.impl.socket.ExtendedNioSocketChannel;
 import org.easy.httpproxy.impl.util.ProxyUtil;
@@ -49,12 +51,13 @@ import org.easy.httpproxy.impl.util.ProxyUtil;
 public class ConnectionFlowController implements ConnectionFlow {
 
 	private final static Logger LOG = Logger.getLogger(ConnectionFlowController.class.getName());
+	private final static WriteToServerFutureListener WRITE_TO_SERVER_FUTURE_LISTENER = new WriteToServerFutureListener();
 
 	private final Channel clientChannel;
 	private volatile ExtendedNioSocketChannel serverChannel;
 	private final Map<SocketAddress, ExtendedNioSocketChannel> proxyToServerChannels = new ConcurrentHashMap<>();
 	private volatile boolean isKeepAlive = false;
-	private HttpFilters httpFilters;
+	private volatile HttpFilters httpFilters;
 	private final HttpFiltersSource httpFiltersSource;
 	private final NioEventLoopGroup serverGroup;
 	private final Config config;
@@ -141,7 +144,7 @@ public class ConnectionFlowController implements ConnectionFlow {
 			ProxyUtil.setChunkHeader(obj);
 		}
 		ProxyUtil.setConnectionHeader(obj, isKeepAlive);
-		ChannelFuture writeFuture = null;
+		ChannelFuture writeFuture;
 		if (flush) {
 			writeFuture = clientChannel.writeAndFlush(obj);
 		} else {
@@ -154,12 +157,14 @@ public class ConnectionFlowController implements ConnectionFlow {
 	public ChannelFuture writeToServer(Object obj, boolean flush) {
 		if (serverChannel != null) {
 			obj = ProxyUtil.transformRequestToServer(obj, isKeepAlive);
-			ChannelFuture writeFuture = null;
+			ChannelFuture writeFuture;
 			if (flush) {
 				writeFuture = serverChannel.writeAndFlush(obj);
 			} else {
 				writeFuture = serverChannel.write(obj);
 			}
+			writeFuture.addListener(WRITE_TO_SERVER_FUTURE_LISTENER);
+			serverChannel.setFlowCompleted(false);
 			LOG.log(Level.FINE, "Write to server {0}", obj.getClass().getName());
 			return writeFuture;
 		} else {
@@ -171,18 +176,27 @@ public class ConnectionFlowController implements ConnectionFlow {
 	//public HttpFilters getHttpFilters() {
 	//	return httpFilters;
 	//}
-	private void setUpAggregator(ChannelPipeline pipeline) {
+	protected void setUpAggregator(ChannelPipeline pipeline) {
 		int maxAggregatedContentLength = httpFiltersSource.getMaximumResponseBufferSizeInBytes();
 		if (maxAggregatedContentLength > 0) {
 			if (pipeline.get(INFLATOR) == null) {
-				pipeline.addBefore(HANDLER, INFLATOR, new HttpContentDecompressor());
+				HttpContentDecompressor httpContentDecompressor = new HttpContentDecompressor();				
+				if (pipeline.get(AGGREGATOR) != null) {
+					pipeline.addBefore(AGGREGATOR, INFLATOR, httpContentDecompressor);
+				} else {
+					pipeline.addBefore(HANDLER, INFLATOR, httpContentDecompressor);
+				}
 			}
 			if (pipeline.get(AGGREGATOR) == null) {
-				pipeline.addBefore(INFLATOR, AGGREGATOR, new HttpObjectAggregator(maxAggregatedContentLength));
+				pipeline.addBefore(HANDLER, AGGREGATOR, new HttpObjectAggregator(maxAggregatedContentLength));
 			}
 		}
 	}
 
+	protected Channel getServerChannel() {
+		return serverChannel;
+	} 
+	
 	@Override
 	public HttpResponse fireClientToProxyRequest(HttpObject msg) {
 		HttpResponse response = httpFilters.clientToProxyRequest(msg);
@@ -204,18 +218,34 @@ public class ConnectionFlowController implements ConnectionFlow {
 		serverChannel.flush();
 	}
 
+	@Override
+	public void readFromServer(Object msg) {
+		if (msg instanceof HttpObject) {
+			if (msg instanceof LastHttpContent) {
+				serverChannel.setFlowCompleted(true);
+			}
+			fireServerToProxyResponse((HttpObject)msg);
+			writeToClient(msg, true);
+		}
+	}
+
+	@Override
+	public void fireServerToProxyResponseTimedOut() {
+		httpFilters.serverToProxyResponseTimedOut();
+	}
+
 	private class ProxyToSererChannelInitializer extends ChannelInitializer<SocketChannel> {
 
 		@Override
 		protected void initChannel(SocketChannel channel) throws Exception {
 			ChannelPipeline pipeline = channel.pipeline();
-			pipeline.addLast(new HttpClientCodec(
+			pipeline.addLast(CODEC, new HttpClientCodec(
 					config.getMaxInitialLineLength(),
 					config.getMaxHeaderSize(),
 					config.getMaxChunkSize()
 			));
 			int idleServerTimeOut = config.getIdleConnectionTimeout();
-			pipeline.addLast("idleStateHandler", new IdleStateHandler(0, 0, idleServerTimeOut, TimeUnit.SECONDS));
+			pipeline.addLast(IDLE_STATE_HANDLER, new IdleStateHandler(idleServerTimeOut, 0, 0, TimeUnit.SECONDS));
 			pipeline.addLast(HANDLER, new ProxyToServerConnectionAdaper(ConnectionFlowController.this));
 		}
 

@@ -6,10 +6,11 @@
 package org.easy.httpproxy.impl.adapter;
 
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.http.HttpObject;
 import java.util.logging.Logger;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
+import io.netty.handler.timeout.ReadTimeoutException;
 import org.easy.httpproxy.core.ConnectionFlow;
 import org.easy.httpproxy.impl.socket.ExtendedNioSocketChannel;
 
@@ -31,28 +32,34 @@ public class ProxyToServerConnectionAdaper extends ChannelInboundHandlerAdapter 
 
 	@Override
 	public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-		if (msg instanceof HttpObject) {
-			flowController.fireServerToProxyResponse((HttpObject)msg);
-			flowController.writeToClient(msg, true);
-		}
+		flowController.readFromServer(msg);
 	}
 
 	@Override
 	public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
 		if (evt instanceof IdleStateEvent) {
+			IdleStateEvent event = (IdleStateEvent) evt;
 			ExtendedNioSocketChannel channel = (ExtendedNioSocketChannel) ctx.channel();
-			boolean lock = channel.lock();
-			if (lock) {
+			if (event.state() == IdleState.READER_IDLE && !channel.isFlowCompleted()) {
+				LOG.fine("Read Timeout");
 				ctx.close();
+				flowController.fireServerToProxyResponseTimedOut();
+				throw ReadTimeoutException.INSTANCE;
+			} else {
+				LOG.fine("Idle Timeout");
+				boolean lock = channel.lock();
+				if (lock) {
+					ctx.close();
+				}
 			}
 		}
 	}
-	
+
 	@Override
 	public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
 		// Close the connection when an exception is raised.
 		cause.printStackTrace();
 		ctx.close();
-	}	
+	}
 
 }

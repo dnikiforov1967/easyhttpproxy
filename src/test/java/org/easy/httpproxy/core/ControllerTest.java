@@ -47,7 +47,7 @@ public class ControllerTest {
 			
 		};
 		HttpRequest httpRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/resource/all");
-		ConnectionFlow controller = new ConnectionFlowController(null, adapter, new Config() {}, new NioEventLoopGroup());
+		ConnectionFlow controller = new ConnectionFlowController(null, adapter, new Config(), new NioEventLoopGroup());
 		controller.init(httpRequest, null);
 	}
 

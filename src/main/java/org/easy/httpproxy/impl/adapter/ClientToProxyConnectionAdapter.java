@@ -30,17 +30,16 @@ public class ClientToProxyConnectionAdapter extends ChannelInboundHandlerAdapter
 
 	private static final Logger LOG = Logger.getLogger(ClientToProxyConnectionAdapter.class.getName());
 
-	private ConnectionFlow flowController;
+	private volatile ConnectionFlow flowController;
 	private final HttpFiltersSource httpFiltersSource;
 	private final NioEventLoopGroup serverGroup;
 	private final Config config;
-	private boolean shortCircle = false;
+	private volatile boolean shortCircle = false;
 
 	public ClientToProxyConnectionAdapter(HttpFiltersSource httpFiltersSource, Config config, NioEventLoopGroup serverGroup) {
 		this.httpFiltersSource = httpFiltersSource;
 		this.config = config;
 		this.serverGroup = serverGroup;
-
 	}
 
 	@Override

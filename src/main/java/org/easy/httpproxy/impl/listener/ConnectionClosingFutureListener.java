@@ -34,7 +34,7 @@ public abstract class ConnectionClosingFutureListener implements ChannelFutureLi
 	
 	@Override
 	public void operationComplete(ChannelFuture f) throws Exception {
-		LOG.log(Level.FINE, "Future " + f.toString() + " was completed");
+		LOG.log(Level.FINE, "Future {0} was completed", f.toString());
 	}
 
 }

@@ -26,6 +26,8 @@ public interface HttpFilters {
 
     InetSocketAddress proxyToServerResolutionStarted(
             HttpObject httpObject);
+	
+	void serverToProxyResponseTimedOut();
 
     void proxyToServerConnectionFailed();
 

@@ -17,54 +17,59 @@ import java.net.InetSocketAddress;
  * @author dnikiforov
  */
 public class HttpFiltersAdapter implements HttpFilters {
-    /**
-     * A default, stateless, no-op {@link HttpFilters} instance.
-     */
-    public static final HttpFiltersAdapter NOOP_FILTER = new HttpFiltersAdapter(null);
 
-    protected final HttpRequest originalRequest;
-    protected final ChannelHandlerContext ctx;
+	/**
+	 * A default, stateless, no-op {@link HttpFilters} instance.
+	 */
+	public static final HttpFiltersAdapter NOOP_FILTER = new HttpFiltersAdapter(null);
 
-    public HttpFiltersAdapter(HttpRequest originalRequest,
-            ChannelHandlerContext ctx) {
-        this.originalRequest = originalRequest;
-        this.ctx = ctx;
-    }
+	protected final HttpRequest originalRequest;
+	protected final ChannelHandlerContext ctx;
 
-    public HttpFiltersAdapter(HttpRequest originalRequest) {
-        this(originalRequest, null);
-    }
+	public HttpFiltersAdapter(HttpRequest originalRequest,
+			ChannelHandlerContext ctx) {
+		this.originalRequest = originalRequest;
+		this.ctx = ctx;
+	}
 
-    @Override
-    public HttpResponse clientToProxyRequest(HttpObject httpObject) {
-        return null;
-    }
+	public HttpFiltersAdapter(HttpRequest originalRequest) {
+		this(originalRequest, null);
+	}
 
-    @Override
-    public HttpResponse proxyToServerRequest(HttpObject httpObject) {
-        return null;
-    }
+	@Override
+	public HttpResponse clientToProxyRequest(HttpObject httpObject) {
+		return null;
+	}
 
-    @Override
-    public HttpObject serverToProxyResponse(HttpObject httpObject) {
-        return httpObject;
-    }
+	@Override
+	public HttpResponse proxyToServerRequest(HttpObject httpObject) {
+		return null;
+	}
 
-    @Override
-    public void serverToProxyResponseReceived() {
-    }
+	@Override
+	public HttpObject serverToProxyResponse(HttpObject httpObject) {
+		return httpObject;
+	}
 
-    @Override
-    public InetSocketAddress proxyToServerResolutionStarted(
-            HttpObject httpObject) {
-        return null;
-    }
+	@Override
+	public void serverToProxyResponseReceived() {
+	}
 
-    @Override
-    public void proxyToServerConnectionFailed() {
-    }
+	@Override
+	public InetSocketAddress proxyToServerResolutionStarted(
+			HttpObject httpObject) {
+		return null;
+	}
 
-    @Override
-    public void proxyToServerConnectionSucceeded(ChannelPipeline pipeline) {
-    }
+	@Override
+	public void proxyToServerConnectionFailed() {
+	}
+
+	@Override
+	public void proxyToServerConnectionSucceeded(ChannelPipeline pipeline) {
+	}
+
+	@Override
+	public void serverToProxyResponseTimedOut() {
+	}
 }

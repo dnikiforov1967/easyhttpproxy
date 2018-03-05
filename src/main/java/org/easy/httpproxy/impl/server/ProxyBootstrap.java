@@ -23,6 +23,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import static org.easy.httpproxy.core.ConnectionFlow.AGGREGATOR;
+import static org.easy.httpproxy.core.ConnectionFlow.DECODER;
+import static org.easy.httpproxy.core.ConnectionFlow.ENCODER;
+import static org.easy.httpproxy.core.ConnectionFlow.IDLE_STATE_HANDLER;
 import static org.easy.httpproxy.core.ConnectionFlow.INFLATOR;
 import org.easy.httpproxy.core.HttpFiltersSource;
 import org.easy.httpproxy.impl.adapter.ClientToProxyConnectionAdapter;
@@ -159,18 +162,18 @@ public class ProxyBootstrap {
 		@Override
 		public void initChannel(SocketChannel ch) throws Exception {
 			ChannelPipeline pipeline = ch.pipeline();
-			pipeline.addLast("decoder", new HttpRequestDecoder(
+			pipeline.addLast(DECODER, new HttpRequestDecoder(
 					config.getMaxInitialLineLength(),
 					config.getMaxHeaderSize(),
 					config.getMaxChunkSize()
 			));
-			pipeline.addLast("encoder", new HttpResponseEncoder());
+			pipeline.addLast(ENCODER, new HttpResponseEncoder());
 			int maxAggregatedContentLength = httpFiltersSource.getMaximumRequestBufferSizeInBytes();
 			if (maxAggregatedContentLength > 0) {
 				pipeline.addLast(INFLATOR, new HttpContentDecompressor());
 				pipeline.addLast(AGGREGATOR, new HttpObjectAggregator(maxAggregatedContentLength));
 			}
-			pipeline.addLast("idleStateHandler", new IdleStateHandler(0, 0, config.idleConnectionTimeout, TimeUnit.SECONDS));
+			pipeline.addLast(IDLE_STATE_HANDLER, new IdleStateHandler(0, 0, config.idleConnectionTimeout, TimeUnit.SECONDS));
 			pipeline.addLast(new ClientToProxyConnectionAdapter(httpFiltersSource, config, serverGroup));
 		}
 	}

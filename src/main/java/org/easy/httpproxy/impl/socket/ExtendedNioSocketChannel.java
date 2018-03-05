@@ -1,13 +1,13 @@
+package org.easy.httpproxy.impl.socket;
+
 /*
  * To change this license header, choose License Headers in Project Properties.
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package org.easy.httpproxy.impl.socket;
-
-import org.easy.httpproxy.core.ConnectionState;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.easy.httpproxy.core.SocketChannelExtentionInterface;
 
 /**
  * Class extends the existing NioSocketChannel Three states are appended -
@@ -15,9 +15,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * @author dnikiforov
  */
-public class ExtendedNioSocketChannel extends NioSocketChannel implements ConnectionState {
+public class ExtendedNioSocketChannel extends NioSocketChannel implements SocketChannelExtentionInterface {
 
-	private AtomicInteger state = new AtomicInteger(0);
+	private final AtomicInteger state = new AtomicInteger(0);
+	private volatile boolean isFlowCompleted = true;
 
 	@Override
 	public boolean lock() {
@@ -31,6 +32,16 @@ public class ExtendedNioSocketChannel extends NioSocketChannel implements Connec
 		//Set as "idle" just if its current state is "used"
 		boolean compareAndSet = state.compareAndSet(1, 0);
 		return compareAndSet;
+	}
+
+	@Override
+	public void setFlowCompleted(boolean isCompleted) {
+		isFlowCompleted = isCompleted;
+	}
+
+	@Override
+	public boolean isFlowCompleted() {
+		return isFlowCompleted;
 	}
 
 }

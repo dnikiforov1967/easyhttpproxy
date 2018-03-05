@@ -8,6 +8,7 @@ package org.easy.httpproxy.core;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.timeout.IdleStateEvent;
+import io.netty.handler.timeout.ReadTimeoutException;
 import org.easy.httpproxy.impl.adapter.ProxyToServerConnectionAdaper;
 import org.easy.httpproxy.impl.socket.ExtendedNioSocketChannel;
 import org.mockito.Mockito;
@@ -80,6 +81,26 @@ public class ProxyToServerConnectionAdapterTest {
 		assertTrue(channel.isOpen());
 	}
 
+	@Test(dataProvider = "getContextAndChannel", expectedExceptions = {ReadTimeoutException.class})
+	public void testReadTimeOutThrow(ChannelHandlerContext context, ExtendedNioSocketChannel channel) throws Exception {
+		channel.setFlowCompleted(false);
+		assertTrue(channel.isOpen());
+		ConnectionFlow mock = mock(ConnectionFlow.class);
+		ProxyToServerConnectionAdaper adapter = new ProxyToServerConnectionAdaper(mock);
+		adapter.userEventTriggered(context, IdleStateEvent.READER_IDLE_STATE_EVENT);
+		assertTrue(channel.isOpen());
+	}	
+	
+	@Test(dataProvider = "getContextAndChannel")
+	public void testReadTimeOutClose(ChannelHandlerContext context, ExtendedNioSocketChannel channel) throws Exception {
+		channel.setFlowCompleted(true);
+		assertTrue(channel.isOpen());
+		ConnectionFlow mock = mock(ConnectionFlow.class);
+		ProxyToServerConnectionAdaper adapter = new ProxyToServerConnectionAdaper(mock);
+		adapter.userEventTriggered(context, IdleStateEvent.READER_IDLE_STATE_EVENT);
+		assertFalse(channel.isOpen());
+	}	
+	
 	@BeforeClass
 	public static void setUpClass() throws Exception {
 	}

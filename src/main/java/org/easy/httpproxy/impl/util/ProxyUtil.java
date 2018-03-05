@@ -32,7 +32,6 @@ public final class ProxyUtil {
 			HttpRequest request = (HttpRequest) obj;
 			AsciiString value = keepAlive ? HttpHeaderValues.KEEP_ALIVE : HttpHeaderValues.CLOSE; 
 			request.headers().set(HttpHeaderNames.CONNECTION, value);
-			request.headers().set(HttpHeaderNames.ACCEPT_ENCODING, HttpHeaderValues.GZIP);
 		}
 		return obj;
 	}
@@ -41,8 +40,10 @@ public final class ProxyUtil {
 		if (obj instanceof HttpResponse) {
 			HttpResponse response = (HttpResponse) obj;
 			if (!response.headers().contains(HttpHeaderNames.CONTENT_LENGTH)) {
-				response.headers().add(HttpHeaderNames.TRANSFER_ENCODING, HttpHeaderValues.CHUNKED);
-				LOG.fine(MessageFormat.format("Append chunked header to {0}", obj.getClass().getName()));
+				if (!response.headers().contains(HttpHeaderNames.TRANSFER_ENCODING)) {
+					response.headers().add(HttpHeaderNames.TRANSFER_ENCODING, HttpHeaderValues.CHUNKED);
+					LOG.fine(MessageFormat.format("Append chunked header to {0}", obj.getClass().getName()));
+				}	
 			}
 		}
 	}
@@ -57,8 +58,8 @@ public final class ProxyUtil {
 			ByteBuf content = response.content();
 			int length = getContentLength(content);
 			response.headers().add(HttpHeaderNames.CONTENT_LENGTH, length);
+			LOG.info(MessageFormat.format("Append length header to {0}", response.getClass().getName()));
 		}
-		LOG.fine(MessageFormat.format("Append length header to {0}", response.getClass().getName()));
 	}
 
 	public static void setConnectionHeader(Object obj, boolean isKeepAlive) {

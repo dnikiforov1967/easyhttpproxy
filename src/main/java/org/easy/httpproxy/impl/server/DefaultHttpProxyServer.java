@@ -61,6 +61,7 @@ public final class DefaultHttpProxyServer implements HttpProxyServer {
 		return this;
 	}
 	
+	@Override
 	public DefaultHttpProxyServer start() {
 		proxyBootstrap.bootstrap();
 		return this;

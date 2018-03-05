@@ -20,7 +20,11 @@ public interface ConnectionFlow {
 	String AGGREGATOR = "aggregator";
 	String INFLATOR = "inflator";
 	String HANDLER = "handler";
-
+	String CODEC = "codec";
+	String DECODER = "decoder";
+	String ENCODER = "encoder";
+	String IDLE_STATE_HANDLER = "idleStateHandler";
+	
 	ChannelFuture writeToClient(Object obj, boolean flush);
 
 	ChannelFuture writeToServer(Object obj, boolean flush);
@@ -34,6 +38,11 @@ public interface ConnectionFlow {
 	HttpResponse init(HttpRequest request, ChannelHandlerContext ctx) throws InterruptedException;
 
 	HttpResponse fireClientToProxyRequest(HttpObject msg);
+	
+	void fireServerToProxyResponseTimedOut();
 
 	void fireServerToProxyResponse(HttpObject msg);
+	
+	void readFromServer(Object msg);
+	
 }

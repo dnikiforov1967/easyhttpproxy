@@ -10,7 +10,6 @@ import io.netty.channel.ChannelFutureListener;
 import org.easy.httpproxy.core.HttpFilters;
 
 
-
 /**
  * This listener handles the server connection open
  * It should call serverConnectionFailed() callback method call in case of failure
