@@ -9,7 +9,9 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import java.net.SocketAddress;
 import java.util.Map;
-import org.easy.httpproxy.impl.socket.ExtendedNioSocketChannel;
+import java.util.logging.Logger;
+import org.easy.httpproxy.core.SocketChannelExtentionInterface;
+import org.easy.httpproxy.impl.util.StatisticsUtil;
 
 
 /**
@@ -18,7 +20,9 @@ import org.easy.httpproxy.impl.socket.ExtendedNioSocketChannel;
  */
 public class ServerConnectionClosingFutureListener extends ConnectionClosingFutureListener {
 
-	public ServerConnectionClosingFutureListener(final Map<SocketAddress, ExtendedNioSocketChannel> map) {
+	private static final Logger LOG = Logger.getLogger(ServerConnectionClosingFutureListener.class.getName());	
+	
+	public ServerConnectionClosingFutureListener(final Map<SocketAddress, SocketChannelExtentionInterface> map) {
 		super(map);
 	}
 
@@ -32,7 +36,9 @@ public class ServerConnectionClosingFutureListener extends ConnectionClosingFutu
 		} else {
 			LOG.fine("Connection was not found in map");
 		}
-		super.operationComplete(f); //To change body of generated methods, choose Tools | Templates.
+		if (f.isSuccess()) {
+			StatisticsUtil.serverConnectionClose();
+		}
 	}
 
 }

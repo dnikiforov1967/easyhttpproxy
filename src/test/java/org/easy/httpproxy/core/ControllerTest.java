@@ -13,7 +13,8 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpVersion;
 import java.net.InetSocketAddress;
 import org.easy.httpproxy.impl.controller.ConnectionFlowController;
-import org.easy.httpproxy.impl.server.ProxyBootstrap.Config;
+import org.easy.httpproxy.impl.server.DefaultConfig;
+import org.easy.httpproxy.impl.socket.ExtendedNioSocketChannel;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeClass;
@@ -47,7 +48,7 @@ public class ControllerTest {
 			
 		};
 		HttpRequest httpRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/resource/all");
-		ConnectionFlow controller = new ConnectionFlowController(null, adapter, new Config(), new NioEventLoopGroup());
+		ConnectionFlow controller = new ConnectionFlowController(null, adapter, new DefaultConfig(), new NioEventLoopGroup(), ExtendedNioSocketChannel.class);
 		controller.init(httpRequest, null);
 	}
 

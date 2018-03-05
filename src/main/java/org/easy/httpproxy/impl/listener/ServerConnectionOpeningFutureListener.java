@@ -8,6 +8,7 @@ package org.easy.httpproxy.impl.listener;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import org.easy.httpproxy.core.HttpFilters;
+import org.easy.httpproxy.impl.util.StatisticsUtil;
 
 
 /**
@@ -28,6 +29,8 @@ public class ServerConnectionOpeningFutureListener implements ChannelFutureListe
 	public void operationComplete(ChannelFuture future) throws Exception {
 		if (!future.isSuccess()) {
 			httpFilters.proxyToServerConnectionFailed();
+		} else {
+			StatisticsUtil.serverConnectionOpen();
 		}
 	}
 

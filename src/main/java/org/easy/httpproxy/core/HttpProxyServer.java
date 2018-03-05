@@ -5,8 +5,6 @@
  */
 package org.easy.httpproxy.core;
 
-import org.easy.httpproxy.impl.server.ThreadPoolConfiguration;
-
 /**
  *
  * @author dnikiforov

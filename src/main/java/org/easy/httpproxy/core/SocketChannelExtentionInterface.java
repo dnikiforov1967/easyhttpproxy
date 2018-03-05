@@ -5,13 +5,13 @@
  */
 package org.easy.httpproxy.core;
 
+import io.netty.channel.socket.SocketChannel;
+
 /**
  *
  * @author dnikiforov
  */
-public interface SocketChannelExtentionInterface {
-	boolean lock();
-	boolean unlock();
+public interface SocketChannelExtentionInterface extends SocketChannel {
 	void setFlowCompleted(boolean isCompleted);
 	boolean isFlowCompleted();
 }

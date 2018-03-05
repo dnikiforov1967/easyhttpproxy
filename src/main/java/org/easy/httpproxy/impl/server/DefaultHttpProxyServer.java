@@ -7,6 +7,7 @@ package org.easy.httpproxy.impl.server;
 
 import org.easy.httpproxy.core.HttpFiltersSource;
 import org.easy.httpproxy.core.HttpProxyServer;
+import org.easy.httpproxy.core.ThreadPoolConfiguration;
 
 
 /**
@@ -19,6 +20,7 @@ public final class DefaultHttpProxyServer implements HttpProxyServer {
 	
 	private DefaultHttpProxyServer() {
 		proxyBootstrap = new ProxyBootstrap();
+		proxyBootstrap.setConfig(new DefaultConfig());
 	}
 	
 	public static DefaultHttpProxyServer bootstrap() {

@@ -64,43 +64,26 @@ public class ProxyToServerConnectionAdapterTest {
 	// TODO add test methods here.
 	// The methods must be annotated with annotation @Test. For example:
 	//
-	@Test(dataProvider = "getContextAndChannel")
-	public void testClose(ChannelHandlerContext context, ExtendedNioSocketChannel channel) throws Exception {
-		assertTrue(channel.isOpen());
-		ProxyToServerConnectionAdaper adapter = new ProxyToServerConnectionAdaper(null);
-		adapter.userEventTriggered(context, IdleStateEvent.ALL_IDLE_STATE_EVENT);
-		assertFalse(channel.isOpen());
-	}
-
-	@Test(dataProvider = "getContextAndChannel")
-	public void testNoClose(ChannelHandlerContext context, ExtendedNioSocketChannel channel) throws Exception {
-		channel.lock();
-		assertTrue(channel.isOpen());
-		ProxyToServerConnectionAdaper adapter = new ProxyToServerConnectionAdaper(null);
-		adapter.userEventTriggered(context, IdleStateEvent.ALL_IDLE_STATE_EVENT);
-		assertTrue(channel.isOpen());
-	}
-
 	@Test(dataProvider = "getContextAndChannel", expectedExceptions = {ReadTimeoutException.class})
-	public void testReadTimeOutThrow(ChannelHandlerContext context, ExtendedNioSocketChannel channel) throws Exception {
-		channel.setFlowCompleted(false);
+	public void testReadTimeoutClose(ChannelHandlerContext context, ExtendedNioSocketChannel channel) throws Exception {
+		ConnectionFlow mockController = mock(ConnectionFlow.class);
 		assertTrue(channel.isOpen());
-		ConnectionFlow mock = mock(ConnectionFlow.class);
-		ProxyToServerConnectionAdaper adapter = new ProxyToServerConnectionAdaper(mock);
-		adapter.userEventTriggered(context, IdleStateEvent.READER_IDLE_STATE_EVENT);
-		assertTrue(channel.isOpen());
-	}	
-	
-	@Test(dataProvider = "getContextAndChannel")
-	public void testReadTimeOutClose(ChannelHandlerContext context, ExtendedNioSocketChannel channel) throws Exception {
-		channel.setFlowCompleted(true);
-		assertTrue(channel.isOpen());
-		ConnectionFlow mock = mock(ConnectionFlow.class);
-		ProxyToServerConnectionAdaper adapter = new ProxyToServerConnectionAdaper(mock);
-		adapter.userEventTriggered(context, IdleStateEvent.READER_IDLE_STATE_EVENT);
+		when(mockController.readTimedOut()).thenReturn(true);
+		ProxyToServerConnectionAdaper adapter = new ProxyToServerConnectionAdaper(mockController);
+		adapter.userEventTriggered(context, IdleStateEvent.ALL_IDLE_STATE_EVENT);
 		assertFalse(channel.isOpen());
-	}	
-	
+	}
+
+	@Test(dataProvider = "getContextAndChannel")
+	public void testIdleClose(ChannelHandlerContext context, ExtendedNioSocketChannel channel) throws Exception {
+		assertTrue(channel.isOpen());
+		ConnectionFlow mockController = mock(ConnectionFlow.class);
+		when(mockController.readTimedOut()).thenReturn(false);
+		ProxyToServerConnectionAdaper adapter = new ProxyToServerConnectionAdaper(mockController);
+		adapter.userEventTriggered(context, IdleStateEvent.ALL_IDLE_STATE_EVENT);
+		assertFalse(channel.isOpen());
+	}
+
 	@BeforeClass
 	public static void setUpClass() throws Exception {
 	}

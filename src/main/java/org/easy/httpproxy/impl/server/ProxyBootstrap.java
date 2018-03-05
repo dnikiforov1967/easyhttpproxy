@@ -11,6 +11,7 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
+import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
@@ -28,7 +29,11 @@ import static org.easy.httpproxy.core.ConnectionFlow.ENCODER;
 import static org.easy.httpproxy.core.ConnectionFlow.IDLE_STATE_HANDLER;
 import static org.easy.httpproxy.core.ConnectionFlow.INFLATOR;
 import org.easy.httpproxy.core.HttpFiltersSource;
+import org.easy.httpproxy.core.ProxyServerConfig;
+import org.easy.httpproxy.core.ThreadPoolConfiguration;
 import org.easy.httpproxy.impl.adapter.ClientToProxyConnectionAdapter;
+import org.easy.httpproxy.impl.socket.ExtendedNioSocketChannel;
+import org.easy.httpproxy.impl.util.StatisticsUtil;
 
 /**
  *
@@ -38,53 +43,17 @@ public class ProxyBootstrap {
 
 	private static final Logger LOG = Logger.getLogger(ServerBootstrap.class.getName());
 
-	public static class Config {
-
-		private int listenPort = 80;
-		private int idleConnectionTimeout = 60;
-		private int connectTimeout = 40000;
-		private final int maxInitialLineLength = 8192;
-		private final int maxHeaderSize = 8192 * 2;
-		private final int maxChunkSize = 8192 * 2;
-
-		public int getConnectTimeout() {
-			return connectTimeout;
-		}
-
-		public int getListenPort() {
-			return listenPort;
-		}
-
-		public int getIdleConnectionTimeout() {
-			return idleConnectionTimeout;
-		}
-
-		public int getMaxInitialLineLength() {
-			return maxInitialLineLength;
-		}
-
-		public int getMaxHeaderSize() {
-			return maxHeaderSize;
-		}
-
-		public int getMaxChunkSize() {
-			return maxChunkSize;
-		}
-
-	}
-
-	private NioEventLoopGroup bossGroup;
-	private NioEventLoopGroup clientGroup;
-	private NioEventLoopGroup serverGroup;
+	private EventLoopGroup bossGroup;
+	private EventLoopGroup clientGroup;
+	private EventLoopGroup serverGroup;
 	private ChannelFuture sync;
-	private final Config config;
+	private ProxyServerConfig config;
 	private ThreadPoolConfiguration threadPoolConfiguration;
 	private HttpFiltersSource httpFiltersSource;
 	private String name;
 
-	public ProxyBootstrap() {
-		config = new Config();
-		threadPoolConfiguration = new ThreadPoolConfiguration();
+	public void setConfig(ProxyServerConfig config) {
+		this.config = config;
 	}
 
 	public void setThreadPoolConfiguration(ThreadPoolConfiguration threadPoolConfiguration) {
@@ -92,17 +61,17 @@ public class ProxyBootstrap {
 	}
 
 	public final ProxyBootstrap port(final int listenPort) {
-		config.listenPort = listenPort;
+		config.setListenPort(listenPort);
 		return this;
 	}
 
 	public final ProxyBootstrap setIdleConnectionTimeout(final int idleConnectionTimeout) {
-		config.idleConnectionTimeout = idleConnectionTimeout;
+		config.setIdleConnectionTimeout(idleConnectionTimeout);
 		return this;
 	}
 
 	public final ProxyBootstrap setConnectTimeout(final int connectTimeout) {
-		config.connectTimeout = connectTimeout;
+		config.setConnectTimeout(connectTimeout);
 		return this;
 	}
 
@@ -123,6 +92,7 @@ public class ProxyBootstrap {
 			}
 		});
 
+		StatisticsUtil.reset();
 		bossGroup = new NioEventLoopGroup(threadPoolConfiguration.getAcceptors());
 		clientGroup = new NioEventLoopGroup(threadPoolConfiguration.getClientWorkers());
 		serverGroup = new NioEventLoopGroup(threadPoolConfiguration.getServerWorkers());
@@ -134,7 +104,7 @@ public class ProxyBootstrap {
 				.option(ChannelOption.SO_BACKLOG, 128)
 				.childOption(ChannelOption.SO_KEEPALIVE, true);
 		try {
-			sync = bootStrap.bind(config.listenPort).sync();
+			sync = bootStrap.bind(config.getListenPort()).sync();
 			ChannelFuture closeFuture = sync.channel().closeFuture();
 			closeFuture.addListener(new BootstrapChannelCloseListener());
 		} catch (InterruptedException ex) {
@@ -173,8 +143,9 @@ public class ProxyBootstrap {
 				pipeline.addLast(INFLATOR, new HttpContentDecompressor());
 				pipeline.addLast(AGGREGATOR, new HttpObjectAggregator(maxAggregatedContentLength));
 			}
-			pipeline.addLast(IDLE_STATE_HANDLER, new IdleStateHandler(0, 0, config.idleConnectionTimeout, TimeUnit.SECONDS));
-			pipeline.addLast(new ClientToProxyConnectionAdapter(httpFiltersSource, config, serverGroup));
+			pipeline.addLast(IDLE_STATE_HANDLER, new IdleStateHandler(0, 0, config.getIdleConnectionTimeout(), TimeUnit.SECONDS));
+			pipeline.addLast(new ClientToProxyConnectionAdapter(httpFiltersSource, config, serverGroup, ExtendedNioSocketChannel.class));
+			StatisticsUtil.clientConnectionOpen();
 		}
 	}
 

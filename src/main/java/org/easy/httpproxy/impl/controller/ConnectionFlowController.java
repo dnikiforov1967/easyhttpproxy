@@ -8,7 +8,6 @@ package org.easy.httpproxy.impl.controller;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
-import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpRequest;
@@ -26,20 +25,26 @@ import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.timeout.IdleStateHandler;
 import java.util.concurrent.TimeUnit;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelOption;
+import io.netty.channel.EventLoopGroup;
+import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.HttpContentDecompressor;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
+import java.nio.channels.ClosedChannelException;
+import java.nio.charset.StandardCharsets;
 import org.easy.httpproxy.core.ConnectionFlow;
 import org.easy.httpproxy.core.HttpFilters;
 import org.easy.httpproxy.core.HttpFiltersSource;
+import org.easy.httpproxy.core.ProxyServerConfig;
+import org.easy.httpproxy.core.SocketChannelExtentionInterface;
 import org.easy.httpproxy.impl.adapter.ProxyToServerConnectionAdaper;
 import org.easy.httpproxy.impl.listener.ClientConnectionClosingFutureListener;
 import org.easy.httpproxy.impl.listener.ServerConnectionClosingFutureListener;
 import org.easy.httpproxy.impl.listener.ServerConnectionOpeningFutureListener;
-import org.easy.httpproxy.impl.listener.WriteToServerFutureListener;
-import org.easy.httpproxy.impl.server.ProxyBootstrap.Config;
-import org.easy.httpproxy.impl.socket.ExtendedNioSocketChannel;
 import org.easy.httpproxy.impl.util.ProxyUtil;
 
 /**
@@ -51,22 +56,24 @@ import org.easy.httpproxy.impl.util.ProxyUtil;
 public class ConnectionFlowController implements ConnectionFlow {
 
 	private final static Logger LOG = Logger.getLogger(ConnectionFlowController.class.getName());
-	private final static WriteToServerFutureListener WRITE_TO_SERVER_FUTURE_LISTENER = new WriteToServerFutureListener();
 
 	private final Channel clientChannel;
-	private volatile ExtendedNioSocketChannel serverChannel;
-	private final Map<SocketAddress, ExtendedNioSocketChannel> proxyToServerChannels = new ConcurrentHashMap<>();
+	private volatile SocketChannelExtentionInterface serverChannel;
+	private final Map<SocketAddress, SocketChannelExtentionInterface> proxyToServerChannels = new ConcurrentHashMap<>();
 	private volatile boolean isKeepAlive = false;
 	private volatile HttpFilters httpFilters;
 	private final HttpFiltersSource httpFiltersSource;
-	private final NioEventLoopGroup serverGroup;
-	private final Config config;
+	private final EventLoopGroup serverGroup;
+	private final ProxyServerConfig config;
+	private final Class<? extends SocketChannelExtentionInterface> socketClass;
+	private volatile boolean shortCircuit;
 
-	public ConnectionFlowController(Channel clientChannel, HttpFiltersSource httpFiltersSource, Config config, NioEventLoopGroup serverGroup) {
+	public ConnectionFlowController(Channel clientChannel, HttpFiltersSource httpFiltersSource, ProxyServerConfig config, EventLoopGroup serverGroup, Class<? extends SocketChannelExtentionInterface> socketClass) {
 		this.clientChannel = clientChannel;
 		this.httpFiltersSource = httpFiltersSource;
 		this.config = config;
 		this.serverGroup = serverGroup;
+		this.socketClass = socketClass;
 	}
 
 	@Override
@@ -84,6 +91,10 @@ public class ConnectionFlowController implements ConnectionFlow {
 		clientCloseFuture.addListener(new ServerConnectionClosingFutureListener(proxyToServerChannels));
 	}
 
+	private void pingServer() throws InterruptedException, ClosedChannelException {
+		serverChannel.writeAndFlush(Unpooled.EMPTY_BUFFER).sync();
+	}
+
 	/**
 	 * Method setups the connection to server
 	 *
@@ -93,9 +104,16 @@ public class ConnectionFlowController implements ConnectionFlow {
 	private void setUpServerConnection(HttpRequest request) throws InterruptedException {
 		SocketAddress resolveTargetServer = httpFilters.proxyToServerResolutionStarted(request);
 		serverChannel = proxyToServerChannels.get(resolveTargetServer);
-		//The connection should not be closed till the first write/read operation
-		//due to timeout. For this selected() should be called
-		if (serverChannel == null || !serverChannel.lock()) {
+		boolean allowToUseExistingConnection = false;
+		if (serverChannel != null && serverChannel.isOpen()) {
+			try {
+				pingServer();
+				allowToUseExistingConnection = true;
+			} catch (ClosedChannelException ex) {
+			}
+		}
+
+		if (!allowToUseExistingConnection) {
 			LOG.fine("Create new server connection");
 			initiateNewConnection(resolveTargetServer);
 		} else {
@@ -108,7 +126,7 @@ public class ConnectionFlowController implements ConnectionFlow {
 
 	private void initiateNewConnection(SocketAddress resolveTargetServer) throws InterruptedException {
 		Bootstrap bootstrap = new Bootstrap().group(serverGroup)
-				.channel(ExtendedNioSocketChannel.class)
+				.channel(socketClass)
 				.remoteAddress(resolveTargetServer)
 				.option(ChannelOption.CONNECT_TIMEOUT_MILLIS,
 						config.getConnectTimeout())
@@ -118,7 +136,7 @@ public class ConnectionFlowController implements ConnectionFlow {
 		connectFuture.addListener(futureListener);
 		//This statement is blocking and throws exception in case of failure
 		connectFuture.sync();
-		serverChannel = (ExtendedNioSocketChannel) connectFuture.channel();
+		serverChannel = (SocketChannelExtentionInterface) connectFuture.channel();
 		listenServerChannelOnClose(serverChannel);
 		proxyToServerChannels.put(resolveTargetServer, serverChannel);
 	}
@@ -163,7 +181,6 @@ public class ConnectionFlowController implements ConnectionFlow {
 			} else {
 				writeFuture = serverChannel.write(obj);
 			}
-			writeFuture.addListener(WRITE_TO_SERVER_FUTURE_LISTENER);
 			serverChannel.setFlowCompleted(false);
 			LOG.log(Level.FINE, "Write to server {0}", obj.getClass().getName());
 			return writeFuture;
@@ -180,7 +197,7 @@ public class ConnectionFlowController implements ConnectionFlow {
 		int maxAggregatedContentLength = httpFiltersSource.getMaximumResponseBufferSizeInBytes();
 		if (maxAggregatedContentLength > 0) {
 			if (pipeline.get(INFLATOR) == null) {
-				HttpContentDecompressor httpContentDecompressor = new HttpContentDecompressor();				
+				HttpContentDecompressor httpContentDecompressor = new HttpContentDecompressor();
 				if (pipeline.get(AGGREGATOR) != null) {
 					pipeline.addBefore(AGGREGATOR, INFLATOR, httpContentDecompressor);
 				} else {
@@ -195,8 +212,8 @@ public class ConnectionFlowController implements ConnectionFlow {
 
 	protected Channel getServerChannel() {
 		return serverChannel;
-	} 
-	
+	}
+
 	@Override
 	public HttpResponse fireClientToProxyRequest(HttpObject msg) {
 		HttpResponse response = httpFilters.clientToProxyRequest(msg);
@@ -224,7 +241,7 @@ public class ConnectionFlowController implements ConnectionFlow {
 			if (msg instanceof LastHttpContent) {
 				serverChannel.setFlowCompleted(true);
 			}
-			fireServerToProxyResponse((HttpObject)msg);
+			fireServerToProxyResponse((HttpObject) msg);
 			writeToClient(msg, true);
 		}
 	}
@@ -234,6 +251,30 @@ public class ConnectionFlowController implements ConnectionFlow {
 		httpFilters.serverToProxyResponseTimedOut();
 	}
 
+	@Override
+	public void setShortCircuit(boolean shortCircuit) {
+		this.shortCircuit = shortCircuit;
+	}
+
+	@Override
+	public boolean getShortCircuit() {
+		return shortCircuit;
+	}
+
+	@Override
+	public boolean readTimedOut() {
+		boolean flowCompleted = !serverChannel.isFlowCompleted();
+		if (flowCompleted) {
+			fireServerToProxyResponseTimedOut();
+			FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
+				HttpResponseStatus.GATEWAY_TIMEOUT, Unpooled.copiedBuffer("Gateway Timeout", StandardCharsets.UTF_8));
+			LOG.fine("Send bad gateway");
+			setShortCircuit(true);
+			writeToClient(response, true);
+		}
+		return flowCompleted;
+	}	
+	
 	private class ProxyToSererChannelInitializer extends ChannelInitializer<SocketChannel> {
 
 		@Override
@@ -245,7 +286,7 @@ public class ConnectionFlowController implements ConnectionFlow {
 					config.getMaxChunkSize()
 			));
 			int idleServerTimeOut = config.getIdleConnectionTimeout();
-			pipeline.addLast(IDLE_STATE_HANDLER, new IdleStateHandler(idleServerTimeOut, 0, 0, TimeUnit.SECONDS));
+			pipeline.addLast(IDLE_STATE_HANDLER, new IdleStateHandler(0, 0, idleServerTimeOut, TimeUnit.SECONDS));
 			pipeline.addLast(HANDLER, new ProxyToServerConnectionAdaper(ConnectionFlowController.this));
 		}
 

@@ -45,4 +45,10 @@ public interface ConnectionFlow {
 	
 	void readFromServer(Object msg);
 	
+	void setShortCircuit(boolean shortCircuit);
+	
+	boolean getShortCircuit();
+	
+	boolean readTimedOut();
+	
 }

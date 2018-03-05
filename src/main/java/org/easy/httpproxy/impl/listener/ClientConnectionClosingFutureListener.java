@@ -8,7 +8,9 @@ package org.easy.httpproxy.impl.listener;
 import io.netty.channel.ChannelFuture;
 import java.net.SocketAddress;
 import java.util.Map;
-import org.easy.httpproxy.impl.socket.ExtendedNioSocketChannel;
+import java.util.logging.Logger;
+import org.easy.httpproxy.core.SocketChannelExtentionInterface;
+import org.easy.httpproxy.impl.util.StatisticsUtil;
 
 
 /**
@@ -17,13 +19,15 @@ import org.easy.httpproxy.impl.socket.ExtendedNioSocketChannel;
  */
 public class ClientConnectionClosingFutureListener extends ConnectionClosingFutureListener {
 
-	public ClientConnectionClosingFutureListener(Map<SocketAddress, ExtendedNioSocketChannel> map) {
+	private static final Logger LOG = Logger.getLogger(ClientConnectionClosingFutureListener.class.getName());		
+	
+	public ClientConnectionClosingFutureListener(Map<SocketAddress, SocketChannelExtentionInterface> map) {
 		super(map);
 	}
 
 	@Override
 	public void operationComplete(ChannelFuture f) throws Exception {
-		Map<SocketAddress, ExtendedNioSocketChannel> map = getMap();
+		Map<SocketAddress, SocketChannelExtentionInterface> map = getMap();
 		map.values().forEach((ch) -> {
 			if (ch.isOpen()) {
 				ch.close();
@@ -31,7 +35,9 @@ public class ClientConnectionClosingFutureListener extends ConnectionClosingFutu
 		});
 		map.clear();
 		LOG.fine("Connection map is cleared");
-		super.operationComplete(f);
+		if (f.isSuccess()) {
+			StatisticsUtil.clientConnectionClose();
+		}
 	}
 
 }

@@ -51,7 +51,7 @@ public class ServerConnectionClosingFutureListenerTest {
 		doReturn(new InetSocketAddress("localhost",90)).when(channel2).remoteAddress();
 		
 		when(future.channel()).thenReturn(channel1);
-		Map<SocketAddress, ExtendedNioSocketChannel> map = new HashMap();
+		Map<SocketAddress, SocketChannelExtentionInterface> map = new HashMap();
 		map.put(channel1.remoteAddress(), channel1);
 		
 		return new Object[][] {{channel1, channel2, future, map}};
@@ -61,7 +61,7 @@ public class ServerConnectionClosingFutureListenerTest {
 	// The methods must be annotated with annotation @Test. For example:
 	//
 	@Test(dataProvider = "getData")
-	public void hello(ExtendedNioSocketChannel channel1, ExtendedNioSocketChannel channel2, ChannelFuture future, Map<SocketAddress, ExtendedNioSocketChannel> map) throws Exception {
+	public void hello(ExtendedNioSocketChannel channel1, ExtendedNioSocketChannel channel2, ChannelFuture future, Map<SocketAddress, SocketChannelExtentionInterface> map) throws Exception {
 		ServerConnectionClosingFutureListener listener = new ServerConnectionClosingFutureListener(map);
 		listener.operationComplete(future);
 		assertTrue(map.isEmpty());

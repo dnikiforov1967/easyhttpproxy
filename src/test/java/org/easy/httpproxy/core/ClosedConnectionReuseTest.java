@@ -5,6 +5,7 @@
  */
 package org.easy.httpproxy.core;
 
+import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPipeline;
@@ -15,6 +16,7 @@ import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpVersion;
 import java.net.InetSocketAddress;
+import java.nio.channels.ClosedChannelException;
 import java.util.List;
 import static org.easy.httpproxy.core.ConnectionFlow.AGGREGATOR;
 import static org.easy.httpproxy.core.ConnectionFlow.CODEC;
@@ -24,7 +26,7 @@ import static org.easy.httpproxy.core.ConnectionFlow.INFLATOR;
 import org.easy.httpproxy.impl.controller.ConnectionFlowController;
 import org.easy.httpproxy.impl.server.DefaultConfig;
 import org.easy.httpproxy.impl.socket.ExtendedNioSocketChannel;
-import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.*;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeClass;
@@ -36,8 +38,8 @@ import org.testng.collections.Lists;
  *
  * @author dnikiforov
  */
-public class AggregatorTest {
-
+public class ClosedConnectionReuseTest {
+	
 	static NioEventLoopGroup group;
 	static final List<String> handlerNames = Lists.newArrayList(
 			CODEC,
@@ -87,33 +89,25 @@ public class AggregatorTest {
 			this.setUpAggregator(pipeline);
 		}
 
+	}	
+	
+	
+	public ClosedConnectionReuseTest() {
 	}
 
 	// TODO add test methods here.
 	// The methods must be annotated with annotation @Test. For example:
 	//
-	@Test
-	public void testAggregator() throws InterruptedException {
+	@Test(expectedExceptions = {ClosedChannelException.class})
+	public void testClosedConnectionReuse() throws InterruptedException {
 		TestConnectionFlowController cfc = new TestConnectionFlowController(null, new TestFiltersSourceAdapter(), new DefaultConfig(), group);
 		HttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
 		cfc.init(request, null);
 		Channel serverChannel = cfc.returnServerChannel();
-		ChannelPipeline pipeline = serverChannel.pipeline();
-		List<String> names = pipeline.names().subList(0, handlerNames.size());
-		assertEquals(names, handlerNames);
-		pipeline.remove(INFLATOR);
-		cfc.restoreAggregator(pipeline);
-		names = pipeline.names().subList(0, handlerNames.size());
-		assertEquals(names, handlerNames);
-		pipeline.remove(AGGREGATOR);
-		cfc.restoreAggregator(pipeline);
-		names = pipeline.names().subList(0, handlerNames.size());
-		assertEquals(names, handlerNames);
-		pipeline.remove(AGGREGATOR);
-		pipeline.remove(INFLATOR);
-		cfc.restoreAggregator(pipeline);
-		names = pipeline.names().subList(0, handlerNames.size());
-		assertEquals(names, handlerNames);
+		assertTrue(serverChannel.isOpen());
+		serverChannel.close().sync();
+		assertFalse(serverChannel.isOpen());
+		serverChannel.writeAndFlush(Unpooled.EMPTY_BUFFER).sync();
 	}
 
 	@BeforeClass

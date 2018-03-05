@@ -7,12 +7,7 @@ package org.easy.httpproxy.impl.adapter;
 
 import io.netty.channel.ChannelHandlerContext;
 import java.util.logging.Logger;
-import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.handler.timeout.IdleState;
-import io.netty.handler.timeout.IdleStateEvent;
-import io.netty.handler.timeout.ReadTimeoutException;
 import org.easy.httpproxy.core.ConnectionFlow;
-import org.easy.httpproxy.impl.socket.ExtendedNioSocketChannel;
 
 /**
  * Simplest handler what accepts client channel as a parameter and read server
@@ -20,11 +15,9 @@ import org.easy.httpproxy.impl.socket.ExtendedNioSocketChannel;
  *
  * @author dnikiforov
  */
-public class ProxyToServerConnectionAdaper extends ChannelInboundHandlerAdapter {
+public class ProxyToServerConnectionAdaper extends AbstractConnectionAdapter {
 
 	private static final Logger LOG = Logger.getLogger(ProxyToServerConnectionAdaper.class.getName());
-
-	private final ConnectionFlow flowController;
 
 	public ProxyToServerConnectionAdaper(final ConnectionFlow controller) {
 		this.flowController = controller;
@@ -33,33 +26,6 @@ public class ProxyToServerConnectionAdaper extends ChannelInboundHandlerAdapter 
 	@Override
 	public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
 		flowController.readFromServer(msg);
-	}
-
-	@Override
-	public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
-		if (evt instanceof IdleStateEvent) {
-			IdleStateEvent event = (IdleStateEvent) evt;
-			ExtendedNioSocketChannel channel = (ExtendedNioSocketChannel) ctx.channel();
-			if (event.state() == IdleState.READER_IDLE && !channel.isFlowCompleted()) {
-				LOG.fine("Read Timeout");
-				ctx.close();
-				flowController.fireServerToProxyResponseTimedOut();
-				throw ReadTimeoutException.INSTANCE;
-			} else {
-				LOG.fine("Idle Timeout");
-				boolean lock = channel.lock();
-				if (lock) {
-					ctx.close();
-				}
-			}
-		}
-	}
-
-	@Override
-	public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-		// Close the connection when an exception is raised.
-		cause.printStackTrace();
-		ctx.close();
 	}
 
 }
